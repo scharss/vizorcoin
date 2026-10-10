@@ -32,6 +32,13 @@ class VizorCoin_Frontend {
 	private $converting = false;
 
 	/**
+	 * Valores ya convertidos en esta petición (anti-doble-conversión).
+	 *
+	 * @var float[]
+	 */
+	private $converted_values = array();
+
+	/**
 	 * Constructor.
 	 *
 	 * @param VizorCoin $plugin Plugin.
@@ -141,12 +148,9 @@ class VizorCoin_Frontend {
 	 * @return bool
 	 */
 	private function is_checkout_context() {
-		// Endpoints de la confirmación: convertir (presentación); order-pay no.
+		// Endpoints de pago/confirmación: convertir (presentación).
 		if ( function_exists( 'is_wc_endpoint_url' ) ) {
-			if ( is_wc_endpoint_url( 'order-pay' ) ) {
-				return false;
-			}
-			if ( is_wc_endpoint_url( 'order-received' ) ) {
+			if ( is_wc_endpoint_url( 'order-pay' ) || is_wc_endpoint_url( 'order-received' ) ) {
 				return true;
 			}
 		}
@@ -238,6 +242,13 @@ class VizorCoin_Frontend {
 			return $formatted;
 		}
 
+		// Anti-doble-conversión: si el importe entrante ya es un valor que
+		// produjimos, no reconvertir (el tema u otro render vuelve a pasar el
+		// precio ya convertido por wc_price).
+		if ( in_array( round( $amount, 4 ), $this->converted_values, true ) ) {
+			return $formatted;
+		}
+
 		$rate = $this->plugin->get_rate();
 		if ( ! $rate || $rate <= 0 ) {
 			return $formatted;
@@ -245,9 +256,29 @@ class VizorCoin_Frontend {
 
 		$converted = $amount * (float) $rate;
 
+		// Red de seguridad: nunca mostrar $0 por una conversión.
+		if ( $amount > 0 && 0.0 === round( $converted, 0 ) ) {
+			return $formatted;
+		}
+
+		if ( isset( $_GET['vcdbg'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			error_log( // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+				sprintf(
+					'VC wc_price price=%s amount=%s rate=%s converted=%s currency=%s',
+					wp_json_encode( $price ),
+					$amount,
+					$rate,
+					$converted,
+					isset( $args['currency'] ) ? $args['currency'] : ''
+				)
+			);
+		}
+
 		$this->converting = true;
 		$new = wc_price( $converted, array( 'currency' => $target, 'decimals' => 0 ) );
 		$this->converting = false;
+
+		$this->converted_values[] = round( $converted, 4 );
 
 		return $new;
 	}
@@ -259,28 +290,47 @@ class VizorCoin_Frontend {
 	 * @return float|null
 	 */
 	private function normalize_amount( $price ) {
-		if ( is_numeric( $price ) ) {
+		if ( is_int( $price ) || is_float( $price ) ) {
 			return (float) $price;
 		}
 		if ( ! is_string( $price ) ) {
 			return null;
 		}
 
-		$thousand = function_exists( 'wc_get_price_thousand_separator' ) ? wc_get_price_thousand_separator() : ',';
-		$decimal  = function_exists( 'wc_get_price_decimal_separator' ) ? wc_get_price_decimal_separator() : '.';
-		$value    = $price;
-
-		if ( '' !== $thousand ) {
-			$value = str_replace( $thousand, '', $value );
-		}
-		if ( '' !== $decimal && '.' !== $decimal ) {
-			$value = str_replace( $decimal, '.', $value );
-		}
-		$value = trim( $value );
-
-		if ( '' === $value || ! is_numeric( $value ) ) {
+		$price = trim( $price );
+		if ( '' === $price ) {
 			return null;
 		}
-		return (float) $value;
+
+		$thousand = function_exists( 'wc_get_price_thousand_separator' ) ? wc_get_price_thousand_separator() : ',';
+		$decimal  = function_exists( 'wc_get_price_decimal_separator' ) ? wc_get_price_decimal_separator() : '.';
+
+		/*
+		 * Si el importe viene formateado con los separadores de la tienda
+		 * (p. ej. "150.000" en tiendas con "." de miles), NO usar is_numeric()
+		 * porque interpretaría el punto de miles como decimal (150 en vez de
+		 * 150000). Detectamos el patrón y quitamos el separador de miles.
+		 */
+		if ( '' !== $thousand ) {
+			$pattern = '/^\d{1,3}(' . preg_quote( $thousand, '/' ) . '\d{3})*(' . preg_quote( $decimal, '/' ) . '\d+)?$/';
+			if ( preg_match( $pattern, $price ) ) {
+				$value = str_replace( $thousand, '', $price );
+				if ( '' !== $decimal && '.' !== $decimal ) {
+					$value = str_replace( $decimal, '.', $value );
+				}
+				return is_numeric( $value ) ? (float) $value : null;
+			}
+		}
+
+		// Número crudo (p. ej. "150000" o "150000.00").
+		if ( is_numeric( $price ) ) {
+			return (float) $price;
+		}
+
+		// Último intento: normalizar el separador decimal de la tienda.
+		if ( '' !== $decimal && '.' !== $decimal ) {
+			$price = str_replace( $decimal, '.', $price );
+		}
+		return is_numeric( $price ) ? (float) $price : null;
 	}
 }

@@ -114,8 +114,12 @@ class VizorCoin_Checkout {
 		if ( ! function_exists( 'is_checkout' ) || ! is_checkout() ) {
 			return;
 		}
-		if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url() ) {
-			return; // order-received, order-pay, etc.
+
+		$is_order_pay = function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url( 'order-pay' );
+
+		// El modal aplica al checkout y a la página de pago del pedido (order-pay).
+		if ( function_exists( 'is_wc_endpoint_url' ) && is_wc_endpoint_url() && ! $is_order_pay ) {
+			return;
 		}
 
 		$settings = $this->plugin->get_settings();
@@ -150,6 +154,16 @@ class VizorCoin_Checkout {
 			(string) $settings['modal_text']
 		);
 
+		// En la página de pago (order-pay) el total es del pedido, no del carrito.
+		$base_total = null;
+		if ( $is_order_pay ) {
+			$order_id = absint( get_query_var( 'order-pay' ) );
+			$order    = $order_id ? wc_get_order( $order_id ) : false;
+			if ( $order ) {
+				$base_total = (float) $order->get_total();
+			}
+		}
+
 		wp_localize_script(
 			'vizorcoin-checkout',
 			'VizorCoinData',
@@ -163,6 +177,7 @@ class VizorCoin_Checkout {
 				'thousandSep'    => wc_get_price_thousand_separator(),
 				'decimalSep'     => wc_get_price_decimal_separator(),
 				'cartUrl'        => esc_url_raw( rest_url( 'wc/store/v1/cart' ) ),
+				'baseTotal'      => $base_total,
 				'title'          => sanitize_text_field( $settings['modal_title'] ),
 				'message'        => wp_kses_post( $message ),
 				'accept'         => __( 'Aceptar y continuar', 'vizorcoin' ),

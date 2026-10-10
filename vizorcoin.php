@@ -3,7 +3,7 @@
  * Plugin Name:       VizorCoin
  * Plugin URI:        https://byterock.xyz/
  * Description:       Muestra los precios del catálogo y de la ficha de producto en una moneda de visualización (USD, EUR, CNY, ...) usando tasas de Yahoo Finance con respaldo, sin alterar la moneda real de la tienda ni el procesamiento de pagos. Añade un aviso modal en el checkout antes de pasar a la pasarela.
- * Version:           1.0.1
+ * Version:           1.0.4
  * Author:            Scharss Azael
  * Author URI:        https://byterock.xyz/
  * License:           GPL-2.0-or-later
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'VIZORCOIN_VERSION', '1.0.1' );
+define( 'VIZORCOIN_VERSION', '1.0.4' );
 define( 'VIZORCOIN_FILE', __FILE__ );
 define( 'VIZORCOIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'VIZORCOIN_URL', plugin_dir_url( __FILE__ ) );

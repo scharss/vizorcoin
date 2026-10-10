@@ -74,6 +74,15 @@ The settings screen shows the last fetched rate, its timestamp and the source us
 
 ## Changelog
 
+### 1.0.4
+- Convert prices on the "Pay for order" page (`order-pay`) and show the confirmation modal before the gateway, using the order total as the base amount.
+
+### 1.0.3
+- Fix price parsing on stores that use `.` as the thousands separator (e.g. `150.000`): the formatted price was misread as `150` and shown as `$0`. Now the store's thousand separator is handled before numeric parsing.
+
+### 1.0.2
+- Prevent double conversion of an already-converted price and never display `$0` from a conversion (safety net). Optional `?vcdbg=1` diagnostic logging.
+
 ### 1.0.1
 - Integer price formatting in the confirmation modal.
 - Convert the order confirmation / Thank-You page (amounts and currency badge).

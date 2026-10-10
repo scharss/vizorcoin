@@ -113,6 +113,15 @@
 	 * luego el store de bloques y, por último, el DOM. Sin llamadas de red.
 	 */
 	function resolveBaseTotal( callback ) {
+		// Total del pedido en la página de pago (order-pay), provisto por el servidor.
+		if ( D.baseTotal !== null && typeof D.baseTotal !== 'undefined' ) {
+			var forced = parseFloat( D.baseTotal );
+			if ( ! isNaN( forced ) ) {
+				callback( forced );
+				return;
+			}
+		}
+
 		var hidden = document.getElementById( 'vizorcoin-base-total' );
 		if ( hidden ) {
 			var raw = parseFloat( hidden.getAttribute( 'data-amount' ) );
@@ -249,9 +258,9 @@
 	}
 
 	function acceptOrder() {
-		var button = lastButton;
+		var target = lastButton;
 		closeModal();
-		if ( ! button ) {
+		if ( ! target ) {
 			return;
 		}
 
@@ -261,7 +270,11 @@
 		}
 
 		try {
-			button.click();
+			if ( target.tagName === 'FORM' ) {
+				target.submit();
+			} else {
+				target.click();
+			}
 		} catch ( e ) {
 			confirmed = false;
 		}
@@ -302,6 +315,35 @@
 	}
 
 	document.addEventListener( 'click', onDocumentClick, true );
+
+	/*
+	 * Respaldo para la página de pago (order-pay): su formulario tiene id
+	 * "order_review" y el botón lo controla la pasarela (p. ej. Wompi). Si el
+	 * clic no coincide con los selectores, interceptamos el envío del formulario.
+	 */
+	function onFormSubmit( event ) {
+		var form = event.target;
+		if ( ! form || form.id !== 'order_review' ) {
+			return;
+		}
+		if ( confirmed ) {
+			return;
+		}
+		if ( modal && modal.overlay.style.display === 'flex' ) {
+			event.preventDefault();
+			return;
+		}
+
+		event.preventDefault();
+		event.stopPropagation();
+		if ( typeof event.stopImmediatePropagation === 'function' ) {
+			event.stopImmediatePropagation();
+		}
+
+		openModal( event.submitter || form );
+	}
+
+	document.addEventListener( 'submit', onFormSubmit, true );
 
 	document.addEventListener( 'keydown', function ( event ) {
 		if ( ( event.key === 'Escape' || event.key === 'Esc' ) && modal && modal.overlay.style.display === 'flex' ) {
